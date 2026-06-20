@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f5f7fb;
+  --color-brand-100: #ebf0f8;
+  --color-brand-200: #dbe3f1;
+  --color-brand-300: #c0cde5;
+  --color-brand-400: #9db1d5;
+  --color-brand-500: #758ebf;
+  --color-brand-600: #5c74a6;
+  --color-brand-700: #4b5e8a;
+  --color-brand-800: #3e4d72;
+  --color-brand-900: #36415f;
+  
+  --color-calm-green-50: #f0fdf4;
+  --color-calm-green-100: #dcfce7;
+  --color-calm-green-500: #22c55e;
+  --color-calm-green-600: #16a34a;
+
+  --color-calm-yellow-50: #fefce8;
+  --color-calm-yellow-100: #fef9c3;
+  --color-calm-yellow-500: #eab308;
+
+  --color-calm-red-50: #fef2f2;
+  --color-calm-red-100: #fee2e2;
+  --color-calm-red-500: #ef4444;
+
+  --font-sans: 'Outfit', 'Inter', 'sans-serif';
+}
+
+@utility glassmorphism {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@utility glassmorphism-dark {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body {
+  background-color: #f8fafc;
+  color: #1e293b; /* slate-800 equivalent */
+  font-family: 'Outfit', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar for sleeker look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #cbd5e1;
+}
