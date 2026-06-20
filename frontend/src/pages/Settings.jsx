@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Trash2, Edit, Plus, Download, AlertTriangle, RefreshCw, Check, X, Search } from 'lucide-react';
+import { Calendar, Trash2, Edit, Plus, Download, AlertTriangle, RefreshCw, Check, X, Search, LogOut } from 'lucide-react';
 import { api } from '../api';
+import { supabase } from '../supabase';
 
 export default function Settings({ 
   topics, 
@@ -404,6 +405,22 @@ export default function Settings({
             </table>
           </div>
         </div>
+      </div>
+
+      {/* Account Section — Log Out */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+        <h3 className="font-bold text-slate-800 text-base mb-1 flex items-center gap-2">
+          <LogOut size={17} className="text-slate-500" />
+          <span>Account</span>
+        </h3>
+        <p className="text-xs text-slate-500 mb-4">Sign out of your GATE Tracker account on this device.</p>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-semibold text-xs px-5 py-2.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+        >
+          <LogOut size={14} />
+          <span>Log Out</span>
+        </button>
       </div>
 
       {/* Reset Confirmation Modal */}

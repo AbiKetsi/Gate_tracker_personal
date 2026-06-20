@@ -1,6 +1,5 @@
 import React from 'react';
 import { LayoutDashboard, CheckSquare, BarChart3, Activity, Settings as SettingsIcon, GraduationCap, User } from 'lucide-react';
-import { getOrCreateDeviceId } from '../api';
 
 const navItems = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -11,8 +10,8 @@ const navItems = [
   { id: 'profile', name: 'Profile', icon: User },
 ];
 
-export default function Sidebar({ activeTab, setActiveTab }) {
-  const deviceId = getOrCreateDeviceId();
+export default function Sidebar({ activeTab, setActiveTab, user }) {
+  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200/80 h-screen sticky top-0">
@@ -49,13 +48,13 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         })}
       </nav>
 
-      {/* Footer / Device info */}
+      {/* Footer / User info */}
       <div className="p-6 border-t border-slate-100 bg-slate-50/50">
         <div className="text-[11px] text-slate-400 font-medium uppercase tracking-wider mb-1">
-          Active Session
+          Signed In As
         </div>
-        <div className="text-xs text-slate-600 font-mono truncate select-all cursor-help" title={deviceId}>
-          {deviceId}
+        <div className="text-xs text-slate-600 font-semibold truncate select-all cursor-help" title={user?.email || ''}>
+          {username}
         </div>
       </div>
     </aside>

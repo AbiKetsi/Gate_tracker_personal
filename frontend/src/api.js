@@ -1,21 +1,14 @@
-// Get or generate a unique device ID for the user
-export function getOrCreateDeviceId() {
-  let deviceId = localStorage.getItem('gate_tracker_device_id');
-  if (!deviceId) {
-    deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('gate_tracker_device_id', deviceId);
-  }
-  return deviceId;
-}
+import { supabase } from './supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 async function fetchJson(endpoint, options = {}) {
-  const deviceId = getOrCreateDeviceId();
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
   
   const headers = {
     'Content-Type': 'application/json',
-    'x-device-id': deviceId,
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
 

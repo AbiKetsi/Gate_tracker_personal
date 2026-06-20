@@ -1,7 +1,10 @@
 import React, { useMemo } from 'react';
-import { User, Award, Calendar, Heart, ShieldAlert, BookOpen, Star, Sparkles } from 'lucide-react';
+import { User, Calendar, Heart, BookOpen, Star, Sparkles, LogOut } from 'lucide-react';
+import { supabase } from '../supabase';
 
-export default function Profile({ topics, tests, moods }) {
+export default function Profile({ topics, tests, moods, user }) {
+  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'GATE Aspirant';
+
   // 1. Overall completion rates
   const syllabusStats = useMemo(() => {
     const total = topics.length;
@@ -75,6 +78,10 @@ export default function Profile({ topics, tests, moods }) {
     return list;
   }, [syllabusStats, testStats]);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-10">
       {/* Profile Banner */}
@@ -83,13 +90,13 @@ export default function Profile({ topics, tests, moods }) {
         <div className="absolute right-0 top-0 -mt-10 -mr-10 w-40 h-40 rounded-full bg-white/5 blur-3xl pointer-events-none" />
         
         {/* Avatar */}
-        <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 text-white shadow-inner">
+        <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 text-white shadow-inner shrink-0">
           <User size={38} className="stroke-[1.5]" />
         </div>
         
         {/* Bio */}
         <div className="text-center md:text-left flex-1 space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight">ABITHA ARIVALAGAN</h2>
+          <h2 className="text-2xl font-bold tracking-tight uppercase">{username}</h2>
           <p className="text-white/80 text-sm font-medium">GATE CS 2027 Aspirant</p>
           <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs text-white/70 pt-2 font-medium">
             <span className="flex items-center gap-1">
@@ -102,6 +109,15 @@ export default function Profile({ topics, tests, moods }) {
             </span>
           </div>
         </div>
+
+        {/* Log Out Button */}
+        <button
+          onClick={handleLogout}
+          className="px-4.5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 ml-auto"
+        >
+          <LogOut size={13} />
+          <span>Log Out</span>
+        </button>
       </div>
 
       {/* Grid of Profile Stats */}

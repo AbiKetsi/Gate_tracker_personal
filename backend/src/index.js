@@ -1,10 +1,19 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Initialize Supabase Client for token verification
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn("WARNING: SUPABASE_URL and/or SUPABASE_ANON_KEY environment variables are missing!");
+}
+const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder');
 
 // Enable CORS for all routes (allows standard development hosts like localhost:5173 or cloud deployment endpoints)
 app.use(cors({
@@ -15,23 +24,35 @@ app.use(cors({
 
 app.use(express.json());
 
-// Middleware to require and extract Device ID
-const requireDevice = (req, res, next) => {
-  const deviceId = req.headers['x-device-id'];
-  if (!deviceId || deviceId.trim() === '') {
-    return res.status(400).json({ error: 'x-device-id header is required to scope data' });
+// Middleware to require and extract User ID from Supabase Authorization Token
+const requireUser = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authorization bearer token is required to scope user data' });
   }
-  req.deviceId = deviceId;
-  next();
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid, expired, or revoked authentication session' });
+    }
+    req.userId = user.id;
+    next();
+  } catch (err) {
+    console.error('Authentication error:', err.message);
+    res.status(500).json({ error: 'Failed to verify session token' });
+  }
 };
 
-// Apply device scoping middleware to all /api routes
-app.use('/api', requireDevice);
+// Apply user scoping middleware to all /api routes
+app.use('/api', requireUser);
 
 // Topics API
 app.get('/api/topics', async (req, res) => {
   try {
-    const topics = await db.getTopics(req.deviceId);
+    const topics = await db.getTopics(req.userId);
     res.json(topics);
   } catch (error) {
     console.error('Error fetching topics:', error);
@@ -45,7 +66,7 @@ app.post('/api/topics', async (req, res) => {
     return res.status(400).json({ error: 'phase, week, and title are required' });
   }
   try {
-    const newTopic = await db.addTopic(req.deviceId, phase, week, title);
+    const newTopic = await db.addTopic(req.userId, phase, week, title);
     res.status(201).json(newTopic);
   } catch (error) {
     console.error('Error adding topic:', error);
@@ -59,9 +80,9 @@ app.put('/api/topics/:id', async (req, res) => {
   try {
     let updated;
     if (tick_date !== undefined && checked !== undefined) {
-      updated = await db.toggleTopicTick(req.deviceId, id, tick_date, checked);
+      updated = await db.toggleTopicTick(req.userId, id, tick_date, checked);
     } else {
-      updated = await db.updateTopic(req.deviceId, id, status, title, phase, week);
+      updated = await db.updateTopic(req.userId, id, status, title, phase, week);
     }
     if (!updated) {
       return res.status(404).json({ error: 'Topic not found or access denied' });
@@ -76,7 +97,7 @@ app.put('/api/topics/:id', async (req, res) => {
 app.delete('/api/topics/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const success = await db.deleteTopic(req.deviceId, id);
+    const success = await db.deleteTopic(req.userId, id);
     if (!success) {
       return res.status(404).json({ error: 'Topic not found or access denied' });
     }
@@ -90,7 +111,7 @@ app.delete('/api/topics/:id', async (req, res) => {
 // Test Sessions API
 app.get('/api/tests', async (req, res) => {
   try {
-    const tests = await db.getTests(req.deviceId);
+    const tests = await db.getTests(req.userId);
     res.json(tests);
   } catch (error) {
     console.error('Error fetching tests:', error);
@@ -104,7 +125,7 @@ app.post('/api/tests', async (req, res) => {
     return res.status(400).json({ error: 'date, subject, topic, marks_scored, and total_marks are required' });
   }
   try {
-    const newTest = await db.addTest(req.deviceId, {
+    const newTest = await db.addTest(req.userId, {
       date,
       subject,
       topic,
@@ -124,7 +145,7 @@ app.post('/api/tests', async (req, res) => {
 // Mood Logs API
 app.get('/api/moods', async (req, res) => {
   try {
-    const moods = await db.getMoods(req.deviceId);
+    const moods = await db.getMoods(req.userId);
     res.json(moods);
   } catch (error) {
     console.error('Error fetching mood logs:', error);
@@ -138,7 +159,7 @@ app.post('/api/moods', async (req, res) => {
     return res.status(400).json({ error: 'date, mood, and energy_level are required' });
   }
   try {
-    const updatedMood = await db.addOrUpdateMood(req.deviceId, { date, mood, energy_level, note });
+    const updatedMood = await db.addOrUpdateMood(req.userId, { date, mood, energy_level, note });
     res.json(updatedMood);
   } catch (error) {
     console.error('Error saving mood log:', error);
@@ -149,7 +170,7 @@ app.post('/api/moods', async (req, res) => {
 // Settings API
 app.get('/api/settings', async (req, res) => {
   try {
-    const settings = await db.getSettings(req.deviceId);
+    const settings = await db.getSettings(req.userId);
     res.json(settings);
   } catch (error) {
     console.error('Error fetching settings:', error);
@@ -163,7 +184,7 @@ app.post('/api/settings', async (req, res) => {
     return res.status(400).json({ error: 'feb_exam_date is required' });
   }
   try {
-    const updatedSettings = await db.updateSettings(req.deviceId, { feb_exam_date });
+    const updatedSettings = await db.updateSettings(req.userId, { feb_exam_date });
     res.json(updatedSettings);
   } catch (error) {
     console.error('Error updating settings:', error);
@@ -174,7 +195,7 @@ app.post('/api/settings', async (req, res) => {
 // Aptitude Logs API
 app.get('/api/aptitude', async (req, res) => {
   try {
-    const logs = await db.getAptitudeLogs(req.deviceId);
+    const logs = await db.getAptitudeLogs(req.userId);
     res.json(logs);
   } catch (error) {
     console.error('Error fetching aptitude logs:', error);
@@ -188,7 +209,7 @@ app.post('/api/aptitude', async (req, res) => {
     return res.status(400).json({ error: 'date and completed are required' });
   }
   try {
-    const log = await db.upsertAptitudeLog(req.deviceId, date, completed);
+    const log = await db.upsertAptitudeLog(req.userId, date, completed);
     res.json(log);
   } catch (error) {
     console.error('Error saving aptitude log:', error);
@@ -199,7 +220,7 @@ app.post('/api/aptitude', async (req, res) => {
 // Export Data API
 app.get('/api/export', async (req, res) => {
   try {
-    const backup = await db.exportData(req.deviceId);
+    const backup = await db.exportData(req.userId);
     res.json(backup);
   } catch (error) {
     console.error('Error exporting data:', error);
@@ -210,7 +231,7 @@ app.get('/api/export', async (req, res) => {
 // Reset Data API
 app.post('/api/reset', async (req, res) => {
   try {
-    await db.resetAll(req.deviceId);
+    await db.resetAll(req.userId);
     res.json({ message: 'User data and progress reset successfully' });
   } catch (error) {
     console.error('Error resetting user data:', error);

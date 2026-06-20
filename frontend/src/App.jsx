@@ -7,25 +7,63 @@ import Performance from './pages/Performance';
 import Mood from './pages/Mood';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
-import { api, getOrCreateDeviceId } from './api';
-import { AlertCircle, RefreshCw, GraduationCap, ServerCrash } from 'lucide-react';
+import Login from './pages/Login';
+import SignUp from './pages/SignUp';
+import { api } from './api';
+import { supabase } from './supabase';
+import { AlertCircle, RefreshCw, GraduationCap, ServerCrash, Loader2 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  
+
+  // Auth States
+  const [session, setSession] = useState(null);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authView, setAuthView] = useState('login'); // 'login' | 'signup'
+
   // Data States
   const [topics, setTopics] = useState([]);
   const [tests, setTests] = useState([]);
   const [moods, setMoods] = useState([]);
   const [aptitude, setAptitude] = useState([]);
   const [settings, setSettings] = useState({ feb_exam_date: '2027-02-07' });
-  
+
   // App States
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Ensure device ID is created
-  const deviceId = getOrCreateDeviceId();
+
+  // ── Auth: Listen for session changes ─────────────────────────────────────
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setUser(s?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    // Subscribe to auth state changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setUser(s?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // ── Data: Fetch all data when user logs in ────────────────────────────────
+  useEffect(() => {
+    if (user) {
+      fetchAllData();
+    } else {
+      // Clear data on logout
+      setTopics([]);
+      setTests([]);
+      setMoods([]);
+      setAptitude([]);
+      setSettings({ feb_exam_date: '2027-02-07' });
+    }
+  }, [user]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -51,25 +89,16 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  // Checkbox cyclical toggle: NOT_STARTED -> IN_PROGRESS -> DONE -> NOT_STARTED
+  // ── Topic Handlers ────────────────────────────────────────────────────────
   const handleToggleTopic = async (topic) => {
     let nextStatus = 'NOT_STARTED';
     if (topic.status === 'NOT_STARTED') nextStatus = 'IN_PROGRESS';
     else if (topic.status === 'IN_PROGRESS') nextStatus = 'DONE';
 
-    // Optimistic Update
     const prevTopics = [...topics];
-    setTopics(prev => prev.map(t => 
-      t.id === topic.id 
-        ? { 
-            ...t, 
-            status: nextStatus, 
-            done_timestamp: nextStatus === 'DONE' ? new Date().toISOString() : null 
-          } 
+    setTopics(prev => prev.map(t =>
+      t.id === topic.id
+        ? { ...t, status: nextStatus, done_timestamp: nextStatus === 'DONE' ? new Date().toISOString() : null }
         : t
     ));
 
@@ -78,14 +107,11 @@ export default function App() {
       setTopics(prev => prev.map(t => t.id === topic.id ? updated : t));
     } catch (err) {
       console.error(err);
-      // Revert optimistic change
       setTopics(prevTopics);
     }
   };
 
-  // Grid tick toggle: mark/unmark a topic on a specific date
   const handleTickTopic = async (topic, tickDate, checked) => {
-    // Optimistic update
     const prevTopics = [...topics];
     setTopics(prev => prev.map(t => {
       if (t.id !== topic.id) return t;
@@ -99,10 +125,8 @@ export default function App() {
 
     try {
       const updated = await api.updateTopic(topic.id, { tick_date: tickDate, checked });
-      // Merge returned topic (which includes updated ticked_dates from db)
       setTopics(prev => prev.map(t => {
         if (t.id !== topic.id) return t;
-        // Keep ticked_dates from optimistic if server didn't return them
         return { ...t, ...updated, ticked_dates: updated.ticked_dates || t.ticked_dates };
       }));
     } catch (err) {
@@ -111,27 +135,24 @@ export default function App() {
     }
   };
 
-  // Add custom topic
   const handleAddTopic = async (topicData) => {
     try {
       const newTopic = await api.addTopic(topicData);
-      setTopics(prev => [...prev, newTopic]);
+      setTopics(prev => [...prev, { ...newTopic, ticked_dates: [] }]);
     } catch (err) {
       alert('Failed to add topic: ' + err.message);
     }
   };
 
-  // Update topic contents (from Settings editor)
   const handleUpdateTopic = async (id, updates) => {
     try {
       const updated = await api.updateTopic(id, updates);
-      setTopics(prev => prev.map(t => t.id === id ? updated : t));
+      setTopics(prev => prev.map(t => t.id === id ? { ...t, ...updated, ticked_dates: t.ticked_dates } : t));
     } catch (err) {
       alert('Failed to update topic: ' + err.message);
     }
   };
 
-  // Delete topic
   const handleDeleteTopic = async (id) => {
     if (!window.confirm('Are you sure you want to delete this topic?')) return;
     try {
@@ -142,7 +163,7 @@ export default function App() {
     }
   };
 
-  // Log test session
+  // ── Test, Mood, Settings, Aptitude Handlers ───────────────────────────────
   const handleLogTest = async (testData) => {
     try {
       const newTest = await api.addTest(testData);
@@ -152,7 +173,6 @@ export default function App() {
     }
   };
 
-  // Log daily mood check-in
   const handleLogMood = async (moodData) => {
     try {
       const updatedMood = await api.addMood(moodData);
@@ -170,7 +190,6 @@ export default function App() {
     }
   };
 
-  // Update Settings
   const handleUpdateSettings = async (settingsData) => {
     try {
       const updated = await api.updateSettings(settingsData);
@@ -180,9 +199,7 @@ export default function App() {
     }
   };
 
-  // Log daily aptitude practice
   const handleLogAptitude = async (date, completed) => {
-    // Optimistic update
     const prev = [...aptitude];
     setAptitude(prevLogs => {
       const idx = prevLogs.findIndex(l => l.date === date);
@@ -211,7 +228,6 @@ export default function App() {
     }
   };
 
-  // Reset Progress
   const handleResetAll = async () => {
     try {
       await api.resetData();
@@ -222,15 +238,35 @@ export default function App() {
     }
   };
 
-  // Determine active component
+  // ── Auth Loading Screen ───────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-400">
+          <Loader2 size={32} className="animate-spin text-brand-500" />
+          <p className="text-sm font-semibold">Loading GATE Tracker...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Auth Gate: Show Login/SignUp if not authenticated ─────────────────────
+  if (!session) {
+    if (authView === 'signup') {
+      return <SignUp onLoginClick={() => setAuthView('login')} />;
+    }
+    return <Login onSignUpClick={() => setAuthView('signup')} />;
+  }
+
+  // ── Main Application ──────────────────────────────────────────────────────
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <Dashboard 
-            topics={topics} 
-            tests={tests} 
-            moods={moods} 
+          <Dashboard
+            topics={topics}
+            tests={tests}
+            moods={moods}
             settings={settings}
             aptitude={aptitude}
             setActiveTab={setActiveTab}
@@ -240,8 +276,8 @@ export default function App() {
         );
       case 'syllabus':
         return (
-          <Syllabus 
-            topics={topics} 
+          <Syllabus
+            topics={topics}
             onTickTopic={handleTickTopic}
             loading={loading}
           />
@@ -252,11 +288,12 @@ export default function App() {
             topics={topics}
             tests={tests}
             moods={moods}
+            user={user}
           />
         );
       case 'performance':
         return (
-          <Performance 
+          <Performance
             tests={tests}
             aptitude={aptitude}
             onLogTest={handleLogTest}
@@ -264,15 +301,15 @@ export default function App() {
         );
       case 'mood':
         return (
-          <Mood 
-            moods={moods} 
+          <Mood
+            moods={moods}
             onLogMood={handleLogMood}
           />
         );
       case 'settings':
         return (
-          <Settings 
-            topics={topics} 
+          <Settings
+            topics={topics}
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
             onAddTopic={handleAddTopic}
@@ -289,7 +326,7 @@ export default function App() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-[#f8fafc]">
       {/* Sidebar navigation on Desktop */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-x-hidden pb-20 md:pb-6">
@@ -306,13 +343,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Logged-in user chip */}
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-100">
+              {user?.user_metadata?.username || user?.email?.split('@')[0]}
+            </span>
             {error && (
               <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-100">
                 <ServerCrash size={13} />
                 <span>Offline</span>
               </span>
             )}
-            <button 
+            <button
               onClick={fetchAllData}
               disabled={loading}
               className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100/50 transition-colors flex items-center gap-1 text-xs font-semibold"
@@ -332,7 +373,7 @@ export default function App() {
               <div className="flex-1">
                 <span className="font-bold">Sync Error:</span> {error}
               </div>
-              <button 
+              <button
                 onClick={fetchAllData}
                 className="bg-white px-2.5 py-1 rounded-lg border border-red-200 text-[10px] font-bold text-red-700 hover:bg-red-50"
               >
@@ -340,7 +381,7 @@ export default function App() {
               </button>
             </div>
           )}
-          
+
           {loading && topics.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-32 text-slate-400">
               <RefreshCw size={32} className="animate-spin text-brand-500 mb-4 stroke-[1.5]" />
