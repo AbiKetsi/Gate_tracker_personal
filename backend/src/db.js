@@ -238,7 +238,7 @@ const dbHelpers = {
     return res.rowCount > 0;
   },
 
-  async toggleTopicTick(userId, id, tickDate, checked) {
+  async toggleTopicTick(userId, id, tickDate, checked, customStatus) {
     const topicId = parseInt(id, 10);
     if (checked) {
       await pool.query(`
@@ -246,36 +246,40 @@ const dbHelpers = {
         VALUES ($1, $2, $3)
         ON CONFLICT (user_id, topic_id, tick_date) DO NOTHING
       `, [userId, topicId, tickDate]);
-
-      const nowStr = new Date().toISOString();
-      await pool.query(`
-        INSERT INTO user_topic_progress (user_id, topic_id, status, done_timestamp)
-        VALUES ($1, $2, 'DONE', $3)
-        ON CONFLICT (user_id, topic_id) DO UPDATE SET
-          status = 'DONE',
-          done_timestamp = COALESCE(user_topic_progress.done_timestamp, EXCLUDED.done_timestamp)
-      `, [userId, topicId, nowStr]);
     } else {
       await pool.query(`
         DELETE FROM topic_ticks
         WHERE user_id = $1 AND topic_id = $2 AND tick_date = $3
       `, [userId, topicId, tickDate]);
+    }
 
+    let statusToSet = customStatus;
+    if (!statusToSet) {
       const remainRes = await pool.query(`
         SELECT COUNT(*) as count FROM topic_ticks
         WHERE user_id = $1 AND topic_id = $2
       `, [userId, topicId]);
       const count = parseInt(remainRes.rows[0].count, 10);
+      statusToSet = count > 0 ? 'DONE' : 'NOT_STARTED';
+    }
 
-      if (count === 0) {
-        await pool.query(`
-          INSERT INTO user_topic_progress (user_id, topic_id, status, done_timestamp)
-          VALUES ($1, $2, 'NOT_STARTED', NULL)
-          ON CONFLICT (user_id, topic_id) DO UPDATE SET
-            status = 'NOT_STARTED',
-            done_timestamp = NULL
-        `, [userId, topicId]);
-      }
+    const nowStr = new Date().toISOString();
+    if (statusToSet === 'NOT_STARTED') {
+      await pool.query(`
+        INSERT INTO user_topic_progress (user_id, topic_id, status, done_timestamp)
+        VALUES ($1, $2, 'NOT_STARTED', NULL)
+        ON CONFLICT (user_id, topic_id) DO UPDATE SET
+          status = 'NOT_STARTED',
+          done_timestamp = NULL
+      `, [userId, topicId]);
+    } else {
+      await pool.query(`
+        INSERT INTO user_topic_progress (user_id, topic_id, status, done_timestamp)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, topic_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          done_timestamp = CASE WHEN EXCLUDED.status = 'DONE' THEN COALESCE(user_topic_progress.done_timestamp, EXCLUDED.done_timestamp) ELSE NULL END
+      `, [userId, topicId, statusToSet, statusToSet === 'DONE' ? nowStr : null]);
     }
 
     const topics = await this.getTopics(userId);

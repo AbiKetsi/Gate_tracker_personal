@@ -294,7 +294,21 @@ export default function Syllabus({ topics, onTickTopic, loading }) {
                                         return (
                                           <td key={di} className="text-center py-2 px-1">
                                             <button
-                                              onClick={() => onTickTopic(topic, dateStr, !isTicked)}
+                                              onClick={() => {
+                                                const weekRange = WEEK_RANGES[topic.week];
+                                                const numDays = weekRange ? weekRange.days : 7;
+                                                const newTicksLength = !isTicked
+                                                  ? (tickedSet.has(dateStr) ? tickedSet.size : tickedSet.size + 1)
+                                                  : (tickedSet.has(dateStr) ? tickedSet.size - 1 : tickedSet.size);
+
+                                                let calculatedStatus = 'NOT_STARTED';
+                                                if (newTicksLength === numDays) {
+                                                  calculatedStatus = 'DONE';
+                                                } else if (newTicksLength > 0) {
+                                                  calculatedStatus = 'IN_PROGRESS';
+                                                }
+                                                onTickTopic(topic, dateStr, !isTicked, calculatedStatus);
+                                              }}
                                               className={`
                                                 w-7 h-7 rounded-lg border-2 flex items-center justify-center mx-auto
                                                 transition-all duration-150 cursor-pointer select-none

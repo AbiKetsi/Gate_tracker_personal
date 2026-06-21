@@ -111,20 +111,21 @@ export default function App() {
     }
   };
 
-  const handleTickTopic = async (topic, tickDate, checked) => {
+  const handleTickTopic = async (topic, tickDate, checked, calculatedStatus) => {
     const prevTopics = [...topics];
+    const statusToUse = calculatedStatus || (checked ? 'DONE' : 'NOT_STARTED');
+
     setTopics(prev => prev.map(t => {
       if (t.id !== topic.id) return t;
       const existingTicks = t.ticked_dates || [];
       const newTicks = checked
         ? [...new Set([...existingTicks, tickDate])]
         : existingTicks.filter(d => d !== tickDate);
-      const newStatus = newTicks.length > 0 ? 'DONE' : 'NOT_STARTED';
-      return { ...t, ticked_dates: newTicks, status: newStatus };
+      return { ...t, ticked_dates: newTicks, status: statusToUse };
     }));
 
     try {
-      const updated = await api.updateTopic(topic.id, { tick_date: tickDate, checked });
+      const updated = await api.updateTopic(topic.id, { tick_date: tickDate, checked, status: statusToUse });
       setTopics(prev => prev.map(t => {
         if (t.id !== topic.id) return t;
         return { ...t, ...updated, ticked_dates: updated.ticked_dates || t.ticked_dates };

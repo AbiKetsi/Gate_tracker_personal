@@ -80,7 +80,7 @@ app.put('/api/topics/:id', async (req, res) => {
   try {
     let updated;
     if (tick_date !== undefined && checked !== undefined) {
-      updated = await db.toggleTopicTick(req.userId, id, tick_date, checked);
+      updated = await db.toggleTopicTick(req.userId, id, tick_date, checked, status);
     } else {
       updated = await db.updateTopic(req.userId, id, status, title, phase, week);
     }
